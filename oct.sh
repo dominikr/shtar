@@ -1,5 +1,5 @@
 
-ff(){
+genfunc(){
 	name=$1
 	in=$2
 	out=$3
@@ -7,44 +7,33 @@ ff(){
 
 	for i
 	do
-		a=`set $in; eval $i 2>&-`
-		case $a in
-			$out)
-				echo $i
-				eval "$name(){ $i; }"
-				break
-				;;
+		case `set $in; eval $i 2>&-` in
+		$out)
+			#echo $i
+			eval "$name(){ $i; }"
+			return
+			;;
 		esac
 	done
+	echo "Can not create $name(): no valid function body found"
+	exit 1
 }
 
 
-ff oct2dec 11 9 \
+genfunc oct2dec 11 9 \
 	'echo $((0$1))' \
 	'echo $((8#$1))' \
 	'printf "%d\n" 0$1' \
 	'echo "8i${1}p" | dc' \
-	'command printf "%d\n" 0$1'
+	'command printf "%d\n" 0$1' \
+	'awk "BEGIN{ printf "%d\n" 0$1 }"' \
 
-oct2dec 12
+oct2dec 11
 
-exit
-for i in \
-	'echo $((0$1))' \
-	'echo $((8#$1))' \
-	'printf "%d\n" 0$1' \
-	'echo "8i${1}p" | dc' \
-	'command printf "%d\n" 0$1'
-do
-	a=`eval $i 2>&-`
-	case $a in
-		9)
-			echo $i
-			eval 'oct2dec(){ '$i'; }'
-			break
-			;;
-	esac
-done
+genfunc add '1 1' 2 \
+	'echo $(( $1 + $2 ))' \
+	'expr $1 + $2' \
+	'echo "$1 $2 + p" | dc' \
+	'awk "BEGIN{ print $1 + $2 }"'
 
-
-
+add 2 3

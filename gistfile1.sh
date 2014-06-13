@@ -15,45 +15,52 @@
 # - tool to add numbers
 #
 # things which are NOT used:
-#  * test/[
-#  * /dev/null
-#  * /tmp
-#  * if
-#  * 
-#todo: 
-# -try to use bc if dc doesn't exist
-# -try to use printf if dc does not support radix conversion (busybox)
-# -use dc.sed? Works!
-# -get rid of echo
-# -use expr if using printf for oct conversion?
-# -use POSIX shell arithmetic/octal conversion?
-#
+#  - test/[
+#  - /dev/null
+#  - /tmp
+#  - if
 
-# Candidates:
-# posix math
-# dc
-# bc
-# expr
-# awk?
-# sed?
-add(){
-	echo "$1 $2 + p" | dc
+genfunc(){
+	name=$1
+	in=$2
+	out=$3
+	shift; shift; shift
+
+	for i
+	do
+		case `set $in; eval $i 2>&-` in
+		$out)
+			#echo $i
+			eval "$name(){ $i; }"
+			return
+			;;
+		esac
+	done
+	echo "Can not create $name(): no valid function body found"
+	exit 1
 }
 
-incr(){
+genfunc oct2dec 11 9 \
+	'echo $((0$1))' \
+	'echo $((8#$1))' \
+	'printf "%d\n" 0$1' \
+	'echo "8i${1}p" | dc' \
+	'echo "ibase=8; $1" | bc' \
+	'command printf "%d\n" 0$1' \
+	'awk "BEGIN{ print 0$1; exit }"' \
+	'gawk "BEGIN{ print 0$1; exit }"' \
+	'perl -e "print oct $1"'
+
+genfunc add '1 1' 2 \
+	'echo $(( $1 + $2 ))' \
+	'expr $1 + $2' \
+	'echo "$1 $2 + p" | dc' \
+	'echo "$1 + $2" | bc' \
+	'awk "BEGIN{ print $1 + $2; exit }"' \
+	'perl -e "print $1 + $2"'
+
+inc(){
 	add $1 1
-}
-
-# Candidates:
-# posix math
-# dc
-# bc
-# printf
-# command printf
-# awk?
-# sed?
-oct2dec(){
-	echo "8 i ${1} p" | dc
 }
 
 # Candidates:
@@ -65,7 +72,7 @@ carve(){
 }
 
 
-output() {
+output(){
 
 	case $fullblock in
 	00000000) 
@@ -85,7 +92,7 @@ output() {
 	*)
 		rest=`oct2dec $restblock`
 		carve 0 $rest >> $name
-		num=`incr $num`
+		num=`inc $num`
 		;;
 	esac
 
@@ -107,7 +114,7 @@ while :; do
 	fullblock=`carve 124 8`
 	restblock=`carve 132 3`
 
-	echo "$num $name $type $mode $g $fullblock $restblock"
+	echo "$num $name $type $mode $fullblock $restblock"
 
 	case $name in
 	'')
@@ -116,7 +123,7 @@ while :; do
 		;;
 	esac
 
-	num=`incr $num`
+	num=`inc $num`
 	case $type in
 		0|7)
 			output;;

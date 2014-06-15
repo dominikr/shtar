@@ -7,9 +7,7 @@ while(<>){
 }
 
 for($string){
-	#s/\n//msg;
 	s/\\\n//msg;
-	#s/({|in|do|\))\n/$1 /msg;
 	s/\)\n/)/msg;
 	s/({|in|do)\n/$1 /msg;
 	s/\n(;;|&&|;)/$1/msg;

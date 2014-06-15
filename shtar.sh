@@ -24,59 +24,68 @@ genfunc(){
 	name=$1
 	in=$2
 	out=$3
-	shift; shift; shift
+	shift
+	shift
+	shift
 
 	for i
 	do
-		case `set $in; eval $i 2>&-` in
-		$out)
+		case `set -- $in; eval $i 2>&-` in
+		"$out")
 			#echo $i
 			eval "$name(){ $i; }"
 			return
 			;;
 		esac
 	done
-	echo "Can not create $name(): no valid function body found"
+	#echo "Can not create $name(): no valid function body found"
+	echo "$name failed"
 	exit 1
 }
 
+genfunc say '-e a\tb' '-e a\tb' \
+	'print -r -- "$*"' \
+	'echo "$*"' \
+	'printf "%s\n" "$*"' \
+	'/bin/echo "$*"' \
+
 genfunc oct2dec 11 9 \
-	'echo $((0$1))' \
-	'echo $((8#$1))' \
+	'say $((0$1))' \
+	'say $((8#$1))' \
 	'printf "%d\n" 0$1' \
-	'echo "8i${1}p" | dc' \
-	'echo "ibase=8; $1" | bc' \
+	'say "8i${1}p" | dc' \
+	'say "ibase=8; $1" | bc' \
 	'command printf "%d\n" 0$1' \
 	'awk "BEGIN{ print 0$1; exit }"' \
 	'gawk "BEGIN{ print 0$1; exit }"' \
 	'perl -e "print oct $1"'
 
 genfunc add '1 1' 2 \
-	'echo $(( $1 + $2 ))' \
+	'say $(( $1 + $2 ))' \
 	'expr $1 + $2' \
-	'echo "$1 $2 + p" | dc' \
-	'echo "$1 + $2" | bc' \
+	'say "$1 $2 + p" | dc' \
+	'say "$1 + $2" | bc' \
 	'awk "BEGIN{ print $1 + $2; exit }"' \
 	'perl -e "print $1 + $2"'
-
-inc(){
-	add $1 1
-}
 
 # Candidates:
 # nothing beats dd here
 # maybe nawk or perl...
 carve(){
-	dd if="${FILE}" count=1 skip=$num 2>&- | dd bs=1 skip=$1 count=$2 2>&-
+	dd if="${FILE}" count=1 skip=$num 2>&-| dd bs=1 skip=$1 count=$2 2>&-
 	#dd if="${FILE}" count=1 skip=$num | dd bs=1 skip=$1 count=$2
 }
 
+inc(){
+	num=`add $num 1`
+}
 
 output(){
 
+	inc
 	case $fullblock in
 	00000000) 
-		: 'do nothing'
+		:
 		;;
 	*)
 		blocks=`oct2dec $fullblock`
@@ -87,17 +96,17 @@ output(){
 
 	case $restblock in
 	000)
-		: 'do nothing'
+		:
 		;;
 	*)
 		rest=`oct2dec $restblock`
 		carve 0 $rest >> $name
-		num=`inc $num`
+		inc
 		;;
 	esac
 
 	# zero-length files
-	: >> $name
+	:>>$name
 
 }
 
@@ -106,35 +115,63 @@ output(){
 FILE=$1
 num=0
 
-while :; do
+while :
+do
 	
 	name=`carve 0 99`
-	type=`carve 156 1`
-	mode=`carve 103 4`
-	fullblock=`carve 124 8`
-	restblock=`carve 132 3`
-
-	echo "$num $name $type $mode $fullblock $restblock"
 
 	case $name in
 	'')
-		echo "EOF"
+		say EOF
 		exit 0
 		;;
 	esac
 
-	num=`inc $num`
+	type=`carve 156 1`
+	mode=`carve 103 4`
+	uid=`carve 265 32`
+	gid=`carve 297 32`
+
 	case $type in
-		0|7)
-			output;;
+		1)
+			link=`carve 157 99`
+			inc
+			ln "$link" "$name"
+			;;
+		2)
+			link=`carve 157 99`
+			inc
+			ln -s "$link" "$name"
+			;;
+		3)
+			maj=`carve 329 8`
+			min=`carve 337 8`
+			inc
+			mknod "$name" c "$maj" "$min"
+			;;
+		4)
+			maj=`carve 329 8`
+			min=`carve 337 8`
+			inc
+			mknod "$name" b "$maj" "$min"
+			;;
 		5)
-			mkdir $name 2>&- ;;
+			inc
+			mkdir "$name" 2>&-
+			;;
+		6)
+			inc
+			mknod "$name" p || mkfifo "$name"
+			;;
 		*)
-			echo "ERROR: unknown type $type, trying to extract anyway"
+			fullblock=`carve 124 8`
+			restblock=`carve 132 3`
 			output
 			;;
 	esac
 
-	chmod $mode $name
+	say $num $name $uid:$gid $type $mode $fullblock $restblock
+	chmod $mode $name 2>&-
+	chown $uid:$gid $name
 
 done

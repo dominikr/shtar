@@ -4,7 +4,7 @@
 # or any POSIX compliant shell
 #
 #used tools:
-# required: dd, echo, dc
+# required: dd
 # optional:
 #  mkdir: will not be able to extract tar files with directories
 #  chmod: file mode will not be set
@@ -20,6 +20,10 @@
 #  - /tmp
 #  - if
 
+say(){
+	echo "$*"
+}
+
 genfunc(){
 	name=$1
 	in=$2
@@ -32,14 +36,14 @@ genfunc(){
 	do
 		case `set -- $in; eval $i 2>&-` in
 		"$out")
-			#echo $i
 			eval "$name(){ $i; }"
+			say $i
 			return
 			;;
 		esac
 	done
-	#echo "Can not create $name(): no valid function body found"
-	echo "$name failed"
+	#say "Can not create $name(): no valid function body found"
+	say "$name failed"
 	exit 1
 }
 
@@ -47,7 +51,7 @@ genfunc say '-e a\tb' '-e a\tb' \
 	'print -r -- "$*"' \
 	'echo "$*"' \
 	'printf "%s\n" "$*"' \
-	'/bin/echo "$*"' \
+	'/bin/echo "$*"'
 
 genfunc oct2dec 11 9 \
 	'say $((0$1))' \
@@ -171,7 +175,7 @@ do
 	esac
 
 	say $num $name $uid:$gid $type $mode $fullblock $restblock
-	chmod $mode $name 2>&-
-	chown $uid:$gid $name
+	chmod "$mode" "$name" 2>&-
+	chown "$uid:$gid" "$name" 2>&-
 
 done
